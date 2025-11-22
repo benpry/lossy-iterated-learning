@@ -1,0 +1,10 @@
+n_betas: 30
+n_generations: 20
+n_observations: 1
+max_val: 21
+dimension: 3
+true_probs: [0.5, 0.25, 0.25]
+max_beta: 10
+save_file_name: dirichlet_categorical_closertrueprobs
+source_distribution: uniform
+distortion_metric: jeff_divergence

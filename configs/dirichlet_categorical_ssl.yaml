@@ -1,0 +1,12 @@
+n_betas: 30
+n_generations: 20
+n_observations: 1
+max_val: 21
+dimension: 3
+true_probs: [0.7, 0.2, 0.1]
+max_beta: 10
+save_file_name: dirichlet_categorical_ssl
+source_distribution: uniform
+distortion_metric: jeff_divergence
+reweighting_fn: accuracy
+n_reweighting_temps: 10
