@@ -20,7 +20,7 @@ from src.utils import (
 
 def main(cfg: Box):
     # set the print options to save full arrays to the raw data file
-    jnp.set_printoptions(threshold=sys.maxsize, precision=16, suppress=True)
+    jnp.set_printoptions(threshold=sys.maxsize, precision=17)
 
     # get a set of betas to sweep over
     betas = np.logspace(-4, cfg.max_beta, num=cfg.n_betas, base=2.0)

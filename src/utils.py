@@ -7,7 +7,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
-from jax.scipy.special import digamma, gamma
+from jax.scipy.special import digamma, gammaln
 
 
 def logprob_true_probs(params, true_probs):
@@ -60,8 +60,8 @@ def kl_divergence_dirichlet(p_params, q_params):
     q_sum = jnp.sum(q_params)
 
     # log gamma quotient
-    log_gamma_quotient = jnp.log(gamma(p_sum) / gamma(q_sum))
-    sum_log_gammas = jnp.sum(jnp.log(gamma(q_params) / gamma(p_params)))
+    log_gamma_quotient = gammaln(p_sum) - gammaln(q_sum)
+    sum_log_gammas = jnp.sum(gammaln(q_params) - gammaln(p_params))
     sum_diffs = jnp.sum((p_params - q_params) * (digamma(p_params) - digamma(p_sum)))
 
     return (log_gamma_quotient + sum_log_gammas + sum_diffs) / jnp.log(

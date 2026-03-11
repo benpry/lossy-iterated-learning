@@ -40,6 +40,9 @@ def blahut_arimoto(source_p, distortion, beta, num_encodings, max_iters=100):
     final_val = jax.lax.while_loop(cond_fun, body_fun, init_val=init_val)
     channel, channel_marginal, D, prev_D, iters = final_val
 
+    # recompute the channel marginal with the new channel
+    channel_marginal = jnp.matmul(source_p, channel)
+
     R = entropy(channel_marginal, base=2.0) - jnp.average(
         entropy(channel, base=2.0, axis=1), weights=source_p, axis=0
     )

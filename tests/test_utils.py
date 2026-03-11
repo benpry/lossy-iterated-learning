@@ -10,6 +10,7 @@ import jax.scipy.stats.dirichlet as jdirichlet
 from src.utils import (
     accuracy_reweighting_fn,
     get_observation_transition_matrix,
+    index_to_params,
     kl_divergence_dirichlet,
     params_to_index,
 )
@@ -91,8 +92,20 @@ def test_accuracy_reweighting_fn():
     assert reweighted_probs[good_index] > reweighted_probs[bad_index]
 
 
+def conversion_helper(dimension, max_val):
+    for index in range(max_val**dimension):
+        params = index_to_params(index, dimension, max_val)
+        assert jnp.all(
+            params
+            == index_to_params(params_to_index(params, max_val), dimension, max_val)
+        )
+
+
 def test_index_params_conversion():
     """
     Test that we're accurately converting between indices and parameters
     """
-    pass
+    conversion_helper(2, 5)
+    conversion_helper(3, 5)
+    conversion_helper(2, 10)
+    conversion_helper(3, 10)

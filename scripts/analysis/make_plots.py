@@ -55,12 +55,13 @@ def make_eventual_performance_by_rate_plot(df):
         + p9.geom_hline(
             yintercept=asocial_performance,
             color="darkgray",
-            size=0.8,
+            linetype="dashed",
+            size=1,
         )
         + p9.geom_line(color="black")
         + p9.geom_point(color="black")
         + p9.theme_tufte(base_size=18)
-        + p9.labs(x="Channel rate", y="Generation 20 Score")
+        + p9.labs(x="Channel rate", y=f"Generation {last_generation} Score")
         + p9.theme(
             axis_title_x=p9.element_text(family="Charter"),
             axis_title_y=p9.element_text(family="Charter"),
