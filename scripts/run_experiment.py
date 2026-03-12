@@ -2,6 +2,7 @@
 This file runs iterated learning simulations with rate-limited channels.
 """
 
+import os
 import sys
 
 import jax.numpy as jnp
@@ -76,6 +77,7 @@ def main(cfg: Box):
 
     # run the parameter sweep
     df_sweep = exp.sweep(all_params=param_dict)
+    os.makedirs(here("data/raw"), exist_ok=True)
     df_sweep.to_csv(here(f"data/raw/{cfg.save_file_name}.csv"), index=False)
 
 
