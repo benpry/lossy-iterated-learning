@@ -16,7 +16,7 @@
 source ~/.zshrc
 
 # Change to the working directory
-cd ~/rate-distortion-culture
+cd ~/lossy-iterated-learning
 
 conda activate rd-culture
 python scripts/run_experiment.py --config dirichlet_categorical

@@ -15,11 +15,11 @@
 # Load any necessary modules
 source ~/.zshrc
 
-cd ~/rate-distortion-culture
+cd ~/lossy-iterated-learning
 
 conda activate rd-culture
-# python scripts/run_experiment.py --config dirichlet_categorical_longlife
-# python scripts/run_experiment.py --config dirichlet_categorical_decreasing
-# python scripts/run_experiment.py --config dirichlet_categorical_closertrueprobs
-# python scripts/run_experiment.py --config dirichlet_categorical_farthertrueprobs
+python scripts/run_experiment.py --config dirichlet_categorical_longlife
+python scripts/run_experiment.py --config dirichlet_categorical_decreasing
+python scripts/run_experiment.py --config dirichlet_categorical_closertrueprobs
+python scripts/run_experiment.py --config dirichlet_categorical_farthertrueprobs
 python scripts/run_experiment.py --config dirichlet_categorical_ssl
