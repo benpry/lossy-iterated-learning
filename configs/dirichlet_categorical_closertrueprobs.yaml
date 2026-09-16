@@ -8,3 +8,6 @@ max_beta: 10
 save_file_name: dirichlet_categorical_closertrueprobs
 source_distribution: uniform
 distortion_metric: jeff_divergence
+# how tightly the Blahut-Arimoto channels have to converge, in total variation per row
+convergence_tolerance: 1.0e-6
+max_channel_iters: 20000000

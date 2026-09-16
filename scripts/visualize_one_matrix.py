@@ -76,7 +76,7 @@ def main(args):
     )(jnp.arange(num_encodings))
     source_p = source_p / source_p.sum()
 
-    channel, channel_marginal, R, D, iters = blahut_arimoto(
+    channel, channel_marginal, R, D, iters, remaining = blahut_arimoto(
         source_p, distortion, args["beta"], num_encodings, max_iters=args["max_iters"]
     )
 

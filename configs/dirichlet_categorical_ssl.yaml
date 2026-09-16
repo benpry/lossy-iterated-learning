@@ -10,3 +10,6 @@ source_distribution: uniform
 distortion_metric: jeff_divergence
 reweighting_fn: accuracy
 n_reweighting_temps: 10
+# how tightly the Blahut-Arimoto channels have to converge, in total variation per row
+convergence_tolerance: 1.0e-6
+max_channel_iters: 20000000

@@ -64,6 +64,14 @@ def main(cfg: Box):
     if jnp.isnan(distortion_matrix).any():
         raise ValueError("NaNs in distortion matrix")
 
+    # let a config override how tightly the channels have to converge, without repeating the
+    # defaults that src/experiment.py already sets
+    channel_convergence_settings = {
+        setting: cfg[setting]
+        for setting in ("convergence_tolerance", "max_channel_iters")
+        if setting in cfg
+    }
+
     # set up the experiment
     exp = Experiment(
         true_probs=cfg.true_probs,
@@ -73,12 +81,16 @@ def main(cfg: Box):
         n_observations=cfg.n_observations,
         max_param_val=cfg.max_val,
         reweighting_fn=reweighting_fn,
+        **channel_convergence_settings,
     )
+
+    # make sure there is somewhere to save the results before spending days computing them
+    raw_data_path = here(f"data/raw/{cfg.save_file_name}.csv")
+    os.makedirs(os.path.dirname(raw_data_path), exist_ok=True)
 
     # run the parameter sweep
     df_sweep = exp.sweep(all_params=param_dict)
-    os.makedirs(here("data/raw"), exist_ok=True)
-    df_sweep.to_csv(here(f"data/raw/{cfg.save_file_name}.csv"), index=False)
+    df_sweep.to_csv(raw_data_path, index=False)
 
 
 if __name__ == "__main__":

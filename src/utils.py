@@ -167,16 +167,19 @@ def get_observation_transition_matrix(probs, max_val):
 @partial(jax.jit, static_argnums=(1, 2, 3))
 def pad_with_zeros(array, smaller_max_val, larger_max_val, dimension):
     """
-    Take an array of probabilities with a smaller max value and pad it to include larger max values
-    """
-    size = larger_max_val**dimension
-    padded_array = jnp.zeros(size)
-    for i, prob in enumerate(array):
-        params = index_to_params(i, dimension, smaller_max_val)
-        new_index = params_to_index(params, larger_max_val)
-        padded_array = padded_array.at[new_index].set(prob)
+    Take an array of probabilities with a smaller max value and pad it to include larger max values.
 
-    return padded_array
+    Every entry moves to whichever index its pseudocounts have in the larger range. Doing that with
+    a Python loop unrolls one scatter per entry into the traced graph, which for the sizes we run at
+    means thousands of them and minutes of compilation, so the indices are computed all at once.
+    """
+    old_indices = jnp.arange(smaller_max_val**dimension)
+    params = jax.vmap(
+        partial(index_to_params, dimension=dimension, max_val=smaller_max_val)
+    )(old_indices)
+    new_indices = jax.vmap(partial(params_to_index, max_val=larger_max_val))(params)
+
+    return jnp.zeros(larger_max_val**dimension).at[new_indices].set(array)
 
 
 def uniform_source_density(index, dimension, max_val):

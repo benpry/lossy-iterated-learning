@@ -8,3 +8,10 @@ max_beta: 10
 save_file_name: dirichlet_categorical_longlife
 source_distribution: uniform
 distortion_metric: jeff_divergence
+# how tightly the Blahut-Arimoto channels have to converge, in total variation per row
+convergence_tolerance: 1.0e-6
+# Higher than the other configs need. This one has a larger channel and its codebook changes shape
+# near beta=2.48, where twenty million iterations left an estimated 1.62e-5 of movement still to
+# come. A cap only costs anything when it is reached, since the loop stops as soon as it meets the
+# tolerance, so this is set well above the roughly twenty-five million that beta looks like needing.
+max_channel_iters: 100000000

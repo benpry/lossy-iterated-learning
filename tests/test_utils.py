@@ -12,6 +12,7 @@ from src.utils import (
     get_observation_transition_matrix,
     index_to_params,
     kl_divergence_dirichlet,
+    pad_with_zeros,
     params_to_index,
 )
 
@@ -109,3 +110,54 @@ def test_index_params_conversion():
     conversion_helper(3, 5)
     conversion_helper(2, 10)
     conversion_helper(3, 10)
+
+
+def reference_pad_with_zeros(array, smaller_max_val, larger_max_val, dimension):
+    """
+    The straightforward way to pad an array of probabilities, one entry at a time.
+
+    pad_with_zeros has to do the same thing without looping in Python, so this pins down what it
+    means before that optimization.
+    """
+    padded_array = jnp.zeros(larger_max_val**dimension)
+    for i, prob in enumerate(array):
+        params = index_to_params(i, dimension, smaller_max_val)
+        new_index = params_to_index(params, larger_max_val)
+        padded_array = padded_array.at[new_index].set(prob)
+
+    return padded_array
+
+
+def test_pad_with_zeros_matches_padding_one_entry_at_a_time():
+    """
+    Padding puts every probability at the index its pseudocounts have in the larger range
+    """
+    for smaller_max_val, larger_max_val, dimension in [(3, 4, 2), (4, 5, 2), (3, 5, 3)]:
+        array = jnp.arange(1, smaller_max_val**dimension + 1, dtype=jnp.float64)
+        array = array / array.sum()
+
+        padded = pad_with_zeros(array, smaller_max_val, larger_max_val, dimension)
+
+        expected = reference_pad_with_zeros(
+            array, smaller_max_val, larger_max_val, dimension
+        )
+        assert jnp.array_equal(padded, expected)
+        # nothing is lost or invented along the way
+        assert jnp.isclose(padded.sum(), array.sum())
+        assert padded.shape == (larger_max_val**dimension,)
+
+
+def test_pad_with_zeros_keeps_pseudocounts_pointing_at_the_same_parameters():
+    """
+    An entry ends up at the index that decodes back to the pseudocounts it started from
+    """
+    smaller_max_val, larger_max_val, dimension = 3, 5, 2
+    array = jnp.zeros(smaller_max_val**dimension).at[4].set(1.0)
+
+    padded = pad_with_zeros(array, smaller_max_val, larger_max_val, dimension)
+
+    moved_to = int(jnp.argmax(padded))
+    assert jnp.array_equal(
+        index_to_params(moved_to, dimension, larger_max_val),
+        index_to_params(4, dimension, smaller_max_val),
+    )

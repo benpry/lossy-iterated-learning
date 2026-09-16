@@ -2,6 +2,7 @@ import os
 import pickle
 from functools import partial
 from itertools import product
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -51,11 +52,15 @@ def get_distortion_matrix(
 
         distortion_matrix = vectorized_distortion_fn(indices_a, indices_b)
 
-        # cache the distortion matrix
+        # Cache the distortion matrix. Several workers starting at once will each build this, so it
+        # goes to a file of its own first and is then moved into place, which is atomic. That way
+        # nobody can load a matrix that is still being written.
         if cache:
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-            with open(cache_path, "wb") as f:
+            partial_path = f"{cache_path}.{os.getpid()}.tmp"
+            with open(partial_path, "wb") as f:
                 np.save(f, distortion_matrix)
+            os.replace(partial_path, cache_path)
 
     return distortion_matrix
 
@@ -74,6 +79,9 @@ class Experiment:
         reweighting_fn=None,
         n_observations=10,
         max_param_val=100,
+        convergence_tolerance=1e-8,
+        max_channel_iters=100_000,
+        channel_cache_dir=None,
     ):
         if not isinstance(true_probs, jnp.ndarray):
             self.true_probs = jnp.asarray(true_probs)
@@ -84,12 +92,64 @@ class Experiment:
         self.max_param_val = max_param_val
         self.distortion_metric = distortion_metric
         self.distortion_matrix = distortion_matrix
-        self.observation_matrix = get_observation_transition_matrix(
-            self.true_probs, self.max_param_val
-        )
+        self._observation_matrix = None
         self.n_generations = n_generations
         self.n_observations = n_observations
         self.reweighting_fn = reweighting_fn
+        self.convergence_tolerance = convergence_tolerance
+        self.max_channel_iters = max_channel_iters
+        # workers filling the cache in parallel need to say where it lives
+        self.channel_cache_dir = (
+            Path(channel_cache_dir)
+            if channel_cache_dir is not None
+            else Path(os.environ["SCR_ROOT_DIR"]) / "cache" / "channels"
+        )
+
+    @property
+    def observation_matrix(self):
+        """
+        The matrix that updates beliefs after one observation, built the first time it is needed.
+
+        It has one row and column per parameter setting, so it runs to gigabytes at the sizes we
+        sweep over. Filling the channel cache never transmits anything, so a worker doing only that
+        should not pay for it.
+        """
+        if self._observation_matrix is None:
+            self._observation_matrix = get_observation_transition_matrix(
+                self.true_probs, self.max_param_val
+            )
+
+        return self._observation_matrix
+
+    def load_cached_channel(self, channel_filepath):
+        """
+        Load a cached channel, treating one that does not meet our tolerance as a cache miss.
+
+        A cached channel is only as good as the convergence it was computed to, and the tolerance is
+        not part of its filename, so the channel has to say for itself how converged it is.
+        """
+        if not os.path.exists(channel_filepath):
+            return None
+
+        with open(channel_filepath, "rb") as f:
+            channel = pickle.load(f)
+
+        if len(channel) < 6:
+            print(
+                f"Recomputing {channel_filepath}: it was cached before channels recorded how far "
+                f"they were from converging"
+            )
+            return None
+
+        remaining = float(channel[5])
+        if remaining > self.convergence_tolerance:
+            print(
+                f"Recomputing {channel_filepath}: it had an estimated {remaining:.3g} of channel "
+                f"movement still to come, above the tolerance of {self.convergence_tolerance:.3g}"
+            )
+            return None
+
+        return channel
 
     def compute_channel(
         self, beta, source_distribution_fn, source_distribution_str=None
@@ -111,11 +171,16 @@ class Experiment:
 
         # check if the channel is cached
         if source_distribution_str is not None:
-            channel_filepath = f"{os.environ['SCR_ROOT_DIR']}/cache/channels/channel_dim-{self.dimension}_max_val-{self.max_param_val}_beta-{jnp.round(beta, 3)}_source-{source_distribution_str}_distortion-{self.distortion_metric}.npy"
-            if os.path.exists(channel_filepath):
-                with open(channel_filepath, "rb") as f:
-                    channel = pickle.load(f)
-                return channel
+            channel_filepath = self.channel_cache_dir / (
+                f"channel_dim-{self.dimension}"
+                f"_max_val-{self.max_param_val}"
+                f"_beta-{jnp.round(beta, 3)}"
+                f"_source-{source_distribution_str}"
+                f"_distortion-{self.distortion_metric}.npy"
+            )
+            cached_channel = self.load_cached_channel(channel_filepath)
+            if cached_channel is not None:
+                return cached_channel
 
         # compute the channel
         channel = blahut_arimoto(
@@ -123,15 +188,27 @@ class Experiment:
             self.distortion_matrix,
             beta,
             self.distortion_matrix.shape[1],
-            max_iters=1000,
+            max_iters=self.max_channel_iters,
+            tolerance=self.convergence_tolerance,
         )
 
         # check the channel for NaNs
         if jnp.isnan(channel[0]).any():
             raise ValueError("Channel contains NaNs")
 
+        # refuse a channel that ran out of iterations before it settled
+        iters, remaining = int(channel[4]), float(channel[5])
+        if remaining > self.convergence_tolerance:
+            raise ValueError(
+                f"Blahut-Arimoto stopped at beta={beta} after {iters} iterations with an estimated "
+                f"{remaining:.3g} of channel movement still to come, above the tolerance of "
+                f"{self.convergence_tolerance:.3g}. Raise max_channel_iters or loosen "
+                f"convergence_tolerance."
+            )
+
         # cache the channel
         if source_distribution_str is not None:
+            os.makedirs(channel_filepath.parent, exist_ok=True)
             with open(channel_filepath, "wb") as f:
                 pickle.dump(channel, f)
 
@@ -180,7 +257,7 @@ class Experiment:
         Run an iterated learning experiment with a given set of parameters
         """
         # compute a channel using the prior
-        channel, channel_marginal, rate, distortion, iters = self.compute_channel(
+        channel, channel_marginal, rate, distortion, iters, remaining = self.compute_channel(
             beta=channel_beta,
             source_distribution_fn=source_distribution_fn,
             source_distribution_str=source_distribution_str,
